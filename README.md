@@ -2,6 +2,8 @@
 
 A browser-based editor for Pro Cycling Manager database files, featuring a complete implementation and documentation of the CDB binary format.
 
+**🔗 Use it now:** https://agfor.github.io/pcmdbedit/
+
 **Privacy:** All processing happens locally in your browser. No files are uploaded to any server. No tracking or analytics.
 
 ## About This Project
@@ -30,7 +32,7 @@ A working decoder/encoder for the proprietary CDB format:
 
 ## Usage
 
-1. Open `db_editor.html` in a modern browser
+1. Open `index.html` in a modern browser
 2. Drag and drop a CDB or SQLite file (or click to browse)
 3. Select a task from the dropdown (e.g., "Edit Rider Statistics")
 4. Pick a record from the searchable list
@@ -55,7 +57,7 @@ Files are typically named like `ProCyclist_1.cdb` or similar. Copy the file befo
 
 ### Editing Tool
 ```
-db_editor.html          # Main application interface
+index.html              # Main application interface
 db_editor.js            # Core editor logic and form generation
 db_file_handler.js      # File I/O and format conversion orchestration
 task_processor.js       # Task definition processing and validation

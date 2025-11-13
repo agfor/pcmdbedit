@@ -318,7 +318,7 @@ async function initializeApp(editorConfig) {
         onDatabaseLoaded: onDatabaseLoaded,
         onError: onError,
         onLoadingStateChange: onLoadingStateChange,
-        getDatabase: () => db
+        getDatabase: () => state.db
     });
 }
 
