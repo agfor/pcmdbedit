@@ -1,0 +1,12 @@
+{
+  "name": "pcm-database-editor",
+  "version": "1.0.0",
+  "description": "Browser-based editor for Pro Cycling Manager database files (CDB and SQLite formats)",
+  "type": "module",
+  "author": "Adam Forsyth <adam@adamforsyth.net>",
+  "license": "MIT",
+  "dependencies": {
+    "pako": "^2.1.0",
+    "sql.js": "^1.13.0"
+  }
+}

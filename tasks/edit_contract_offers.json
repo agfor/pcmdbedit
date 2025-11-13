@@ -1,0 +1,37 @@
+{
+    "name": "Edit Contract Offers",
+    "main_table": "DYN_procyclist_contract_offer",
+    "record_identifier": "record_info",
+    "fields": ["status", "dates"],
+    "column_groups": {
+        "record_info": {
+            "columns": ["IDprocyclist_contract_offer"],
+            "display": ["DYN_team.gene_sz_shortname", "value_i_status"],
+            "values": {
+                "type": "join",
+                "table": "DYN_team",
+                "local_key": "fkIDteam",
+                "foreign_key": "IDteam"
+            }
+        },
+        "status": {
+            "columns": ["value_i_status"],
+            "values": {
+                "type": "enum",
+                "options": {
+                    "-1": "Not offered / Rejected",
+                    "0": "Will offer",
+                    "1": "Offer active",
+                    "2": "Offer accepted"
+                }
+            }
+        },
+        "dates": {
+            "columns": ["value_i_date_proposal", "value_i_date_withdrawal"],
+            "values": {
+                "type": "query",
+                "sql": "WITH RECURSIVE date_range AS (SELECT date((SELECT MAX(gene_i_date) / 10000 FROM DYN_news) || '-08-01') as d UNION ALL SELECT date(d, '+1 day') FROM date_range WHERE d < date((SELECT MAX(gene_i_date) / 10000 FROM DYN_news) || '-10-16')) SELECT CAST(strftime('%Y%m%d', d) AS INTEGER) FROM date_range"
+            }
+        }
+    }
+}

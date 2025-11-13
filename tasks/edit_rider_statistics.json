@@ -1,0 +1,51 @@
+{
+    "name": "Edit Rider Statistics",
+    "main_table": "DYN_cyclist",
+    "record_identifier": "record_info",
+    "fields": ["statistics"],
+    "column_groups": {
+        "record_info": {
+            "columns": ["IDcyclist"],
+            "display": ["gene_sz_lastname", "gene_sz_firstname"],
+            "values": {
+                "type": "readonly"
+            }
+        },
+        "statistics": {
+            "columns": [
+                "charac_i_plain",
+                "limit_i_plain",
+                "charac_i_mountain",
+                "limit_i_mountain",
+                "charac_i_medium_mountain",
+                "limit_i_medium_mountain",
+                "charac_i_downhilling",
+                "limit_i_downhilling",
+                "charac_i_cobble",
+                "limit_i_cobble",
+                "charac_i_timetrial",
+                "limit_i_timetrial",
+                "charac_i_prologue",
+                "limit_i_prologue",
+                "charac_i_sprint",
+                "limit_i_sprint",
+                "charac_i_acceleration",
+                "limit_i_acceleration",
+                "charac_i_endurance",
+                "limit_i_endurance",
+                "charac_i_resistance",
+                "limit_i_resistance",
+                "charac_i_recuperation",
+                "limit_i_recuperation",
+                "charac_i_hill",
+                "limit_i_hill",
+                "charac_i_baroudeur",
+                "limit_i_baroudeur"
+            ],
+            "values": {
+                "type": "list",
+                "options": [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85]
+            }
+        }
+    }
+}

@@ -1,0 +1,9 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.envrc
+
+# Temporary files
+tmp/*
+!tmp/.gitkeep
