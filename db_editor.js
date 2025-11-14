@@ -6,6 +6,7 @@
 import { PCMFileHandler } from './db_file_handler.js';
 import Choices from 'choices.js';
 import * as TaskProcessor from './task_processor.js';
+import { renderConsole, escapeHtml } from './sql_console.js';
 
 const CHOICES_CONFIG = {
     searchEnabled: true,
@@ -18,12 +19,6 @@ const CHOICES_CONFIG_NO_SEARCH = {
     shouldSort: false,
     itemSelectText: ''
 };
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 class EditorState {
     constructor() {
@@ -38,6 +33,17 @@ class EditorState {
         this.taskSelectChoices = null;
         this.recordSelectChoices = null;
         this.fieldSelectChoices = [];
+        // SQL Console state
+        this.sqlConsole = {
+            isActive: false,
+            queryHistory: [],
+            writeMode: false,
+            currentQuery: '',
+            maxHistorySize: 20,
+            rowLimit: 200,
+            currentOffset: 0,
+            cachedResult: null
+        };
     }
 
     destroyChoices() {
@@ -69,6 +75,7 @@ async function loadTasks() {
 
 function populateTaskDropdown() {
     const options = '<option value="">-- Choose a task --</option>' +
+        '<option value="__sql_console__">SQL Console</option>' +
         state.tasks.map((task, index) => `<option value="${index}">${escapeHtml(task.name)}</option>`).join('');
     document.getElementById('taskSelect').innerHTML = options;
 }
@@ -82,11 +89,24 @@ function setupEventHandlers() {
             state.destroyChoices();
             state.currentTask = null;
             state.currentRecordId = null;
+            state.sqlConsole.isActive = false;
+            return;
+        }
+
+        // Check if SQL Console was selected
+        if (taskIndex === '__sql_console__') {
+            document.getElementById('record-section').classList.remove('active');
+            state.destroyChoices();
+            state.currentTask = null;
+            state.currentRecordId = null;
+            state.sqlConsole.isActive = true;
+            renderConsole(state.db, state.sqlConsole);
             return;
         }
 
         document.getElementById('form-section').classList.remove('active');
         state.currentRecordId = null;
+        state.sqlConsole.isActive = false;
 
         if (state.recordSelectChoices) {
             state.recordSelectChoices.destroy();

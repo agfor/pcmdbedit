@@ -13,6 +13,7 @@ This project serves two purposes:
 ### 1. As an Editing Tool
 A browser-based interface for editing PCM save files with:
 - **Task-driven editing** - Pre-configured editing tasks with appropriate controls
+- **SQL console** - Direct SQL query access with schema browser and query history
 - **Auto-save** - Changes saved immediately to in-memory database
 - **Searchable dropdowns** - Quick record selection with search
 - **Smart controls** - Sliders for ranges, dropdowns for enums, joined tables
@@ -22,7 +23,7 @@ A browser-based interface for editing PCM save files with:
 A working decoder/encoder for the proprietary CDB format:
 - **Complete CDB parser** (`cdb_converter.js`) - Handles binary format, compression, table structures
 - **Round-trip conversion** - CDB → SQLite → CDB with full fidelity
-- **Format documentation** (`CDB_FORMAT.md`) - Detailed specification of the binary format
+- **Format documentation** ([`CDB_FORMAT.md`](CDB_FORMAT.md)) - Detailed specification of the binary format
 - **Reference implementation** - Can be used by other projects needing CDB support
 
 ## Requirements
@@ -34,9 +35,9 @@ A working decoder/encoder for the proprietary CDB format:
 
 1. Open `index.html` in a modern browser
 2. Drag and drop a CDB or SQLite file (or click to browse)
-3. Select a task from the dropdown (e.g., "Edit Rider Statistics")
-4. Pick a record from the searchable list
-5. Edit fields - changes save automatically
+3. Select a task from the dropdown (e.g., "Edit Rider Statistics") or choose "SQL Console"
+4. **For tasks:** Pick a record from the searchable list and edit fields (auto-saves)
+5. **For SQL console:** Run queries with schema browser and optional write mode
 6. Download the modified database (SQLite or CDB format)
 
 ## Finding Your Database Files
@@ -59,26 +60,27 @@ Files are typically named like `ProCyclist_1.cdb` or similar. Copy the file befo
 ```
 index.html              # Main application interface
 db_editor.js            # Core editor logic and form generation
+sql_console.js          # SQL console UI and query execution
 db_file_handler.js      # File I/O and format conversion orchestration
 task_processor.js       # Task definition processing and validation
 tasks/                  # Task definition JSON files
   edit_rider_statistics.json
   edit_contract_offers.json
-TASK_FORMAT.md          # How to create new editing tasks
 ```
+[`TASK_FORMAT.md`](TASK_FORMAT.md) - How to create new editing tasks
 
 ### CDB Format Implementation
 ```
 cdb_converter.js        # CDB binary format parser/writer
-CDB_FORMAT.md           # Complete CDB format specification
 test_cdb_conversion.js  # Round-trip conversion tests
 ```
+[`CDB_FORMAT.md`](CDB_FORMAT.md) - Complete CDB format specification
 
 ## Technology
 
-- **SQL.js** - SQLite in WebAssembly
-- **Pako** - Compression/decompression for CDB format
-- **Choices.js** - Enhanced dropdowns
+- [**SQL.js**](https://github.com/sql-js/sql.js) - SQLite in WebAssembly
+- [**Pako**](https://github.com/nodeca/pako) - Compression/decompression for CDB format
+- [**Choices.js**](https://github.com/Choices-js/Choices) - Enhanced dropdowns
 - **Vanilla JavaScript** - ES6 modules, no build step required
 
 ## TODO
