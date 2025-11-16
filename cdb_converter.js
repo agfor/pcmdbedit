@@ -30,11 +30,14 @@ COLUMN_INDEX: 0x24             // Column index (used in encoding formula)
 };
 
 const DATA_TYPE = {
-INTEGER: 0,
-FLOAT: 1,
-STRING: 2,
-FLOAT_LIST: 10,
-INTEGER_LIST: 11
+    INTEGER: 0,
+    FLOAT: 1,
+    STRING: 2,
+    BOOLEAN: 3,            // NUMERIC/boolean (0 or 1)
+    INTEGER_BYTE: 4,       // INTEGER (8-bit signed, -128 to 127)
+    INTEGER_SHORT: 5,      // INTEGER (16-bit unsigned, 0-65535)
+    FLOAT_LIST: 10,
+    INTEGER_LIST: 11
 };
 
 // TABLE_FLAGS values by table ID (extracted from a save file, meaning unknown)
@@ -84,6 +87,9 @@ export function cdbToSQLite(cdbData, SQL) {
                 case DATA_TYPE.INTEGER_LIST:
                 case DATA_TYPE.FLOAT_LIST:
                     baseType = 'TEXT';
+                    break;
+                case DATA_TYPE.BOOLEAN:
+                    baseType = 'NUMERIC';
                     break;
                 default:
                     baseType = 'INTEGER';
@@ -329,10 +335,19 @@ class CDBReader {
             case CHUNK_TYPE.DATABASE_TABLES:
                 const tables = this.readArray(() => {
                     const tableChunk = this.readChunk();
+                    const rowCount = tableChunk.children[CHUNK_TYPE.ROW_COUNT];
+                    // Pass rowCount to column parsing
+                    const columns = tableChunk.children[CHUNK_TYPE.COLUMN_DEFINITIONS];
+                    columns.forEach(col => {
+                        if (col.columnChunk) {
+                            col.data = this.convertColumnData(col.columnChunk, rowCount);
+                            delete col.columnChunk;
+                        }
+                    });
                     return {
                         name: tableChunk.header.description,
-                        rowCount: tableChunk.children[CHUNK_TYPE.ROW_COUNT],
-                        columns: tableChunk.children[CHUNK_TYPE.COLUMN_DEFINITIONS],
+                        rowCount,
+                        columns,
                         tableId: tableChunk.children[CHUNK_TYPE.TABLE_ID],
                         tableFlags: tableChunk.children[CHUNK_TYPE.TABLE_FLAGS]
                     };
@@ -343,11 +358,13 @@ class CDBReader {
             case CHUNK_TYPE.COLUMN_DEFINITIONS:
                 const columns = this.readArray(() => {
                     const columnChunk = this.readChunk();
+                    const colName = columnChunk.header.description;
+                    // Don't convert data yet - will be done later with rowCount
                     return {
-                        name: columnChunk.header.description,
+                        name: colName,
                         type: columnChunk.children[CHUNK_TYPE.COLUMN_DATA_TYPE],
-                        data: this.convertColumnData(columnChunk),
-                        columnIndex: columnChunk.children[CHUNK_TYPE.COLUMN_INDEX]
+                        columnIndex: columnChunk.children[CHUNK_TYPE.COLUMN_INDEX],
+                        columnChunk: columnChunk  // Store for later conversion
                     };
                 });
                 result = { type: header.chunkType, value: columns };
@@ -393,14 +410,60 @@ class CDBReader {
         return items;
     }
 
-    convertColumnData(columnChunk) {
+    convertColumnData(columnChunk, rowCount) {
         const dataType = columnChunk.children[CHUNK_TYPE.COLUMN_DATA_TYPE];
-        const rawData = columnChunk.children[CHUNK_TYPE.COLUMN_VALUES];
+        const rawData = columnChunk.children[CHUNK_TYPE.COLUMN_VALUES] ?? [];
         const sizedData = columnChunk.children[CHUNK_TYPE.COLUMN_BLOB_DATA] ?? new Uint8Array([0, 0, 0, 0]);
+
+        // If no data, return array of zeros/empty strings based on type
+        if (rawData.length === 0 && rowCount !== undefined) {
+            switch (dataType) {
+                case DATA_TYPE.STRING:
+                    return Array(rowCount).fill('');
+                case DATA_TYPE.FLOAT:
+                    return Array(rowCount).fill(0.0);
+                case DATA_TYPE.FLOAT_LIST:
+                case DATA_TYPE.INTEGER_LIST:
+                    return Array(rowCount).fill('()');
+                default:
+                    return Array(rowCount).fill(0);
+            }
+        }
 
         switch (dataType) {
             case DATA_TYPE.INTEGER:
                 return rawData.map(value => value | 0);
+
+            case DATA_TYPE.BOOLEAN:
+                // Type 3: Bit-packed boolean values - rawData contains bytes, not uint32s
+                if (rowCount === undefined) {
+                    throw new Error('Row count required for boolean type');
+                }
+                // Reinterpret uint32 array as bytes
+                const bytes = new Uint8Array(new Uint32Array(rawData).buffer);
+                const boolValues = [];
+                for (let i = 0; i < rowCount; i++) {
+                    const byteIndex = Math.floor(i / 8);
+                    const bitIndex = i % 8;
+                    boolValues.push((bytes[byteIndex] >> bitIndex) & 1);
+                }
+                return boolValues;
+
+            case DATA_TYPE.INTEGER_BYTE:
+                // Type 4: 8-bit signed integers (-128 to 127)
+                const bytes4 = new Uint8Array(new Uint32Array(rawData).buffer).slice(0, rowCount);
+                // Convert unsigned bytes to signed int8
+                return Array.from(bytes4, b => b > 127 ? b - 256 : b);
+
+            case DATA_TYPE.INTEGER_SHORT:
+                // Type 5: 16-bit unsigned integers
+                const bytes5 = new Uint8Array(new Uint32Array(rawData).buffer);
+                const uint16Values = [];
+                for (let i = 0; i < rowCount; i++) {
+                    // Read as little-endian uint16
+                    uint16Values.push(bytes5[i * 2] | (bytes5[i * 2 + 1] << 8));
+                }
+                return uint16Values;
 
             case DATA_TYPE.FLOAT:
                 const view = new DataView(new ArrayBuffer(4));
@@ -548,6 +611,42 @@ class CDBWriter {
         switch (dataType) {
             case DATA_TYPE.INTEGER:
                 values.forEach(value => this.write32(value));
+                break;
+
+            case DATA_TYPE.BOOLEAN:
+                // Type 3: Bit-packed boolean values
+                const numBytes = Math.ceil(values.length / 8);
+                for (let byteIdx = 0; byteIdx < numBytes; byteIdx++) {
+                    let byte = 0;
+                    for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
+                        const valueIdx = byteIdx * 8 + bitIdx;
+                        if (valueIdx < values.length && values[valueIdx]) {
+                            byte |= (1 << bitIdx);
+                        }
+                    }
+                    this.ensureCapacity(1);
+                    this.buffer[this.pos++] = byte;
+                }
+                break;
+
+            case DATA_TYPE.INTEGER_BYTE:
+                // Type 4: 8-bit signed integers (-128 to 127)
+                values.forEach(value => {
+                    this.ensureCapacity(1);
+                    // Convert signed to unsigned byte for storage
+                    const byte = value < 0 ? value + 256 : value;
+                    this.buffer[this.pos++] = byte & 0xFF;
+                });
+                break;
+
+            case DATA_TYPE.INTEGER_SHORT:
+                // Type 5: 16-bit unsigned integers
+                values.forEach(value => {
+                    this.ensureCapacity(2);
+                    // Write as little-endian uint16
+                    this.buffer[this.pos++] = (value & 0xFF);
+                    this.buffer[this.pos++] = ((value >> 8) & 0xFF);
+                });
                 break;
 
             case DATA_TYPE.FLOAT:

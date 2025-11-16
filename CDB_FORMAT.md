@@ -156,9 +156,12 @@ This allows round-trip conversion by storing table_id and column_index in the SQ
 
 | Enum | Type | Chunks Used | Storage Format | SQLite Type | Notes |
 |------|------|-------------|----------------|-------------|-------|
-| 0 | INTEGER | 0x22 | Signed int32 | INTEGER | Standard integers |
-| 1 | FLOAT | 0x22 | IEEE 754 float32 | REAL | Stored as uint32, reinterpreted as float |
+| 0 | INTEGER | 0x22 | Signed int32 | INTEGER | Standard integers (4 bytes per value) |
+| 1 | FLOAT | 0x22 | IEEE 754 float32 | REAL | Stored as uint32, reinterpreted as float (4 bytes per value) |
 | 2 | STRING | 0x22 + 0x23 | Length-indexed | TEXT | Null-terminated strings |
+| 3 | BOOLEAN | 0x22 | Bit-packed | NUMERIC | 1 bit per value, packed into bytes |
+| 4 | INTEGER_BYTE | 0x22 | Signed int8 | INTEGER | Byte integers -128 to 127 (1 byte per value) |
+| 5 | INTEGER_SHORT | 0x22 | Unsigned int16 | INTEGER | Short integers 0-65535 (2 bytes per value) |
 | 10 | FLOAT_LIST | 0x22 + 0x23 | Count-indexed | TEXT | Formatted as `(v1,v2,v3)` |
 | 11 | INTEGER_LIST | 0x22 + 0x23 | Count-indexed | TEXT | Formatted as `(v1,v2,v3)` |
 
@@ -197,22 +200,55 @@ Data: [10, 20, 30, 40, 50]
 → Row 2: (40,50)
 ```
 
+### Boolean Format (Type 3)
+
+**COLUMN_VALUES (0x22)**: Bit-packed boolean values (1 bit per row)
+
+Each byte contains 8 boolean values. Bit 0 is row 0, bit 1 is row 1, etc.
+
+**Example**:
+```
+Byte 0: 0b10110001 = rows 0, 4, 5, 7 are true (1)
+Byte 1: 0b00000011 = rows 8, 9 are true
+```
+
+For N rows, ceil(N/8) bytes are stored.
+
+### Byte Integer Format (Type 4)
+
+**COLUMN_VALUES (0x22)**: Array of signed 8-bit integers (-128 to 127)
+
+One byte per row, values -128 to 127.
+
+### Short Integer Format (Type 5)
+
+**COLUMN_VALUES (0x22)**: Array of unsigned 16-bit integers (0-65535)
+
+Two bytes per row (little-endian), values 0-65535.
+
 ### Reading from CDB
 
 | Type | Read From 0x22 | Conversion |
 |------|----------------|------------|
-| 0 | uint32 array | Convert to signed int32 (`value \| 0`) |
-| 1 | uint32 array | Reinterpret bits as IEEE 754 float32 |
-| 2 | Length array | Extract strings from 0x23 using lengths |
-| 10, 11 | Count array | Extract values from 0x23, format as text |
+| 0 | 4 bytes per row | Convert to signed int32 (`value \| 0`) |
+| 1 | 4 bytes per row | Reinterpret bits as IEEE 754 float32 |
+| 2 | 4 bytes per row (lengths) | Extract strings from 0x23 using lengths |
+| 3 | 1 bit per row (packed) | Unpack bits into boolean values (0 or 1) |
+| 4 | 1 byte per row | Read as signed int8 (-128 to 127) |
+| 5 | 2 bytes per row | Read as unsigned int16 little-endian (0-65535) |
+| 10, 11 | 4 bytes per row (counts) | Extract values from 0x23, format as text |
 
 ### Writing to CDB
 
-SQLite column type determines CDB data type:
-- `INTEGER` → type 0
-- `REAL` → type 1
+SQLite column type and encoded value determine CDB data type:
+- Extract type from encoded value: `type = encoded_value & 0xF`
+- `INTEGER` with type 0 → type 0 (32-bit signed)
+- `INTEGER` with type 4 → type 4 (8-bit unsigned)
+- `INTEGER` with type 5 → type 5 (16-bit unsigned)
+- `NUMERIC` with type 3 → type 3 (bit-packed boolean)
+- `REAL` → type 1 (32-bit float)
 - `TEXT` starting with `(` → type 10 or 11 (parse to determine integer vs float)
-- `TEXT` other → type 2
+- `TEXT` other → type 2 (string)
 
 ---
 
