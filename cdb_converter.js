@@ -70,11 +70,15 @@ export function cdbToSQLite(cdbData, SQL) {
     // DB_STRUCTURE uses special encoding: table_id=1, columns indexed from 1
     db.run(`CREATE TABLE DB_STRUCTURE (TableName TEXT '274', ID INTEGER)`);
 
+    // Store TABLE_FLAGS in memory (attached to db object, not in SQLite)
+    db._tableFlagsMap = new Map();
+
     tables.forEach((table) => {
         if (table.tableId === null) {
             throw new Error(`Table '${table.name}' has null tableId`);
         }
         db.run(`INSERT INTO DB_STRUCTURE VALUES (?, ?)`, [table.name, table.tableId]);
+        db._tableFlagsMap.set(table.tableId, table.tableFlags);
 
         // Keep columns in original file order (do NOT sort)
         const columnDefs = table.columns.map((col) => {
@@ -147,6 +151,9 @@ export function sqliteToCDB(db) {
 
     const tables = tablesResult[0].values.map(row => ({ name: row[0], id: row[1] }));
 
+    // Use in-memory table flags map if available, otherwise fall back to hardcoded values
+    const tableFlagsMap = db._tableFlagsMap || new Map();
+
     const estimatedSize = db.export().length;
     const writer = new CDBWriter(estimatedSize);
 
@@ -190,7 +197,8 @@ export function sqliteToCDB(db) {
         writer.writeChunkClose();
 
         writer.writeChunkOpen(CHUNK_TYPE.TABLE_FLAGS);
-        writer.write32(TABLE_FLAGS_BY_ID[tableInfo.id]);
+        const tableFlags = tableFlagsMap.get(tableInfo.id) ?? TABLE_FLAGS_BY_ID[tableInfo.id];
+        writer.write32(tableFlags);
         writer.writeChunkClose();
 
         writer.writeChunkOpen(CHUNK_TYPE.COLUMN_DEFINITIONS);

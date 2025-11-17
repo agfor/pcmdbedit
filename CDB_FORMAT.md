@@ -337,7 +337,7 @@ The converter preserves these values for round-trip conversion:
 1. **TABLE_ID** (0x15) → Stored in `DB_STRUCTURE` table as `ID` column
 2. **COLUMN_INDEX** (0x24) → Encoded in SQLite column type string
 3. **COLUMN_DATA_TYPE** (0x21) → Encoded in SQLite column type string
-4. **TABLE_FLAGS** (0x16) → Hardcoded map in converter (TABLE_FLAGS_BY_ID)
+4. **TABLE_FLAGS** (0x16) → Stored in-memory as `db._tableFlagsMap` (Map object attached to database instance, not in SQLite)
 
 Encoding formula:
 ```javascript
